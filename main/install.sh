@@ -36,7 +36,9 @@ echo "📦 Installing prerequisites..."
 apt install -y curl ca-certificates tzdata openssh-server perl rclone
 
 if ! dpkg -l | grep -q postfix; then
-  echo "📧 Installing postfix..."
+  echo "📧 Installing postfix (non-interactive safe config)..."
+  echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-selections
+  echo "postfix postfix/mailname string localhost" | debconf-set-selections
   DEBIAN_FRONTEND=noninteractive apt install -y postfix
 fi
 
