@@ -1,0 +1,9 @@
+[Unit]
+Description=GitLab Backup and Upload to Google Drive
+After=network-online.target gitlab-runsvdir.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/gitlab_gdrive_backup.sh
