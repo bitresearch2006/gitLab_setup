@@ -10,7 +10,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-read -rp "Enter GitLab URL (example: http://localhost:8081 or http://192.168.1.50:8081): " GITLAB_URL
+read -rp "Enter GitLab URL (example: http://localhost:8080 or http://192.168.1.50:8080): " GITLAB_URL
 
 if [ -z "$GITLAB_URL" ]; then
   echo "❌ GitLab URL cannot be empty."
