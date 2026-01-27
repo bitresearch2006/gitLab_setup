@@ -211,6 +211,156 @@ Copy code
 /root/.config/rclone/rclone.conf
 You can revoke access anytime from your Google Account → Security → Third-party access
 
+# 🪟 Running GitLab CE on WSL (Windows Subsystem for Linux)
+
+> GitLab Omnibus CE is designed for full Linux servers. It **can run on WSL2**, but requires additional fixes due to WSL networking, socket handling, and service supervision differences.
+
+This document summarizes **all working changes** required to make GitLab CE functional on WSL2.
+
+---
+
+## ✅ 1. Use WSL2 (not WSL1)
+GitLab requires:
+- Proper networking
+- UNIX socket compatibility
+- Runit-based service supervision
+
+Check version:
+```bash
+wsl -l -v
+```
+Convert if needed:
+```bash
+wsl --set-version Ubuntu 2
+```
+
+---
+
+## ✅ 2. Fix PostgreSQL peer authentication failure
+WSL often runs GitLab services as **root**, causing PostgreSQL to reject peer authentication.
+
+If you see:
+```
+FATAL: Peer authentication failed for user "gitlab"
+```
+Edit PostgreSQL auth:
+```bash
+sudo nano /var/opt/gitlab/postgresql/data/pg_hba.conf
+```
+Replace:
+```text
+local   all         all         peer map=gitlab
+```
+with:
+```text
+local   all         all         md5
+```
+OR (WSL‑friendly):
+```text
+local   all         all         trust
+```
+Apply:
+```bash
+sudo gitlab-ctl restart postgresql
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+
+---
+
+## ✅ 3. Fix Puma not responding / NGINX 502 errors
+WSL has unstable UNIX socket support. Puma may create the socket file but fail to fully bind.
+
+Fix: **Force Puma to use TCP instead of UNIX socket.**
+
+Edit:
+```bash
+sudo nano /etc/gitlab/gitlab.rb
+```
+Add:
+```ruby
+# WSL-compatible Puma binding
+puma['listen'] = '0.0.0.0'
+puma['port'] = 8181
+
+# Route Workhorse to Puma
+gitlab_workhorse['auth_backend'] = "http://127.0.0.1:8181"
+```
+Apply:
+```bash
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+Validate:
+```bash
+sudo ss -tulpn | grep 8181
+curl http://localhost:8181/-/health
+```
+
+---
+
+## ✅ 4. Access GitLab from Windows
+WSL networking may treat `127.0.0.1` differently.
+
+Use:
+```
+http://localhost:8080
+```
+Avoid:
+```
+http://127.0.0.1:8080
+```
+
+---
+
+## ✅ 5. systemd timers & backup jobs on WSL
+WSL may not have systemd enabled.
+
+Check:
+```bash
+systemctl is-system-running
+```
+
+### Option A — Enable systemd
+Edit:
+```
+/etc/wsl.conf
+```
+Add:
+```ini
+[boot]
+systemd=true
+```
+Restart:
+```powershell
+wsl --shutdown
+```
+
+### Option B — Run backup manually
+```bash
+sudo ./gitlab_gdrive_backup.sh
+```
+
+---
+
+## ✅ 6. Recommended WSL memory settings
+Create/edit:
+```
+%UserProfile%\.wslconfig
+```
+Add:
+```ini
+[wsl2]
+memory=8GB
+processors=4
+```
+Restart WSL:
+```powershell
+wsl --shutdown
+```
+
+---
+
 🧪 Tested On
 Ubuntu 20.04 / 22.04
 

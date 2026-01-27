@@ -113,3 +113,56 @@ echo "⏱️ Timer status:"
 systemctl list-timers | grep gitlab-gdrive-backup || true
 echo
 echo "📄 Logs: /var/log/gitlab_gdrive_backup.log"
+
+echo
+echo "========================================"
+echo "📝 Updates required in WSL"
+echo "========================================"
+✅ 2. Fix PostgreSQL “peer authentication failed” error
+WSL often launches GitLab services under root, confusing PostgreSQL’s peer‑auth.
+If you see:
+FATAL: Peer authentication failed for user "gitlab"
+no match in usermap "gitlab"
+
+Edit PostgreSQL auth config:
+sudo nano /var/opt/gitlab/postgresql/data/pg_hba.conf
+find:
+local   all         all                               peer map=gitlab
+
+Replace with:
+local   all         all                               md5
+OR (WSL‑friendly, simplest):
+local   all         all                               trust
+Apply changes:
+
+sudo gitlab-ctl restart postgresql
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+
+✅ 3. Fix Puma not responding / NGINX “502 Bad Gateway”
+WSL has unreliable UNIX socket support, causing Puma to create the socket file but fail to bind fully.
+Fix: Force Puma to use TCP instead of UNIX sockets.
+Edit:
+sudo nano /etc/gitlab/gitlab.rb
+Add:
+
+# WSL-compatible Puma binding
+puma['listen'] = '0.0.0.0'
+puma['port'] = 8181
+
+# Route GitLab Workhorse to Puma via TCP instead of socket
+gitlab_workhorse['auth_backend'] = "http://127.0.0.1:8181"
+
+Apply:
+
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+
+Verify Puma port:
+sudo ss -tulpn | grep 8181
+
+Health check
+curl http://localhost:8181/-/health
+✅ 4. Access GitLab from Windows (important!)
+On WSL, browser access works best using:
+http://localhost:8080
